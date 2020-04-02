@@ -1,0 +1,16 @@
+{
+  "name": "hivedumps-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hivechain/dhive": "^0.13.2",
+    "express": "^4.17.1",
+    "helmet": "^3.22.0"
+  }
+}

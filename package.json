@@ -10,7 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "@hivechain/dhive": "^0.13.2",
+    "cors": "^2.8.5",
     "express": "^4.17.1",
-    "helmet": "^3.22.0"
+    "helmet": "^3.22.0",
+    "json2csv": "^5.0.0"
   }
 }

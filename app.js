@@ -1,25 +1,18 @@
 var port         = (process.env.NODE_ENV !== 'production') ? 5000 : 5000
 const express    = require('express')
 const helmet     = require('helmet')
+const cors = require('cors')
 const app        = express()
+const bodyParser = require('body-parser');
+app.use(bodyParser.urlencoded({ extended: false }));	
 const apis = require("./apis")
+
 // const middleware = require('./routes/middleware')
 
 app.use(helmet())
 app.use(express.json())
 app.use(express.urlencoded({extended: true}))
-
-app.use(function(err, req, res, next) {
-	// if (err instanceof SyntaxError) return res.status(401).end()
-	res.header("Access-Control-Allow-Origin", "*"); // CORS already enabled from nginx
-	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-	res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-	res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-	res.header('Expires', '-1');
-	res.header('Pragma', 'no-cache');
-	next();
-});
-
+app.use(cors())
 // middleware has been disabled in order to skip authentication
 // app.use('/api', middleware.api)
 
@@ -28,17 +21,17 @@ app.use('/api', apis)
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
-	var err = new Error('Not Found');
-	err.status = 404;
-	next(err);
-})
+  const err = new Error('Not Found');
+  err.status = 404;
+  next(err);
+});
+
 app.use((err, req, res, next) => {
-	res.locals.error = err;
-	res.status(err.status);
-	res.json({
-		message: err.message,
-		error: err
-	})
-})
+	console.log(err)
+  res.locals.error = err;
+  const status = err.status || 500;
+  res.status(status);
+  res.json({ error: err.message })
+});
 
 app.listen(port, () => console.log('API running on port ' + port))

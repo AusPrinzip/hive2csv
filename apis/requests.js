@@ -2,23 +2,27 @@ var express = require('express')
 var router = express.Router()
 const utils = require('../utils')
 const client = utils.getClient()
-
+const stringify = require('csv-stringify')
+const axios = require('axios')
+const request = require('request');
+const JSONStream = require('JSONStream')
+const es = require('event-stream')
+const fs = require('fs')
 function wait () {
 	return new Promise((resolve, reject) => {
-		setTimeout(() => { resolve() }, 1000)
+		setTimeout(() => { resolve() }, 2000)
 	})
 }
 
-router.get('/', async function (req, res, next) {
-	console.log('Incoming new GET request')
-	var { operation, from, until, account } = req.query
-	from = new Date(from)
-	until = new Date(until)
+function downloadCsv(req, res) {
+  stringify(posts, { header: true })
+    .pipe(res)
+}
 
+async function loop () {
 	const batchInterval = 1000
 	var batches = []
-
-	// async loop
+	var reachedInterval = false
 	for (let i = 0; i < 20; i++) {
 		console.log('i = ' + i)
 		let start = i == 0 ? -1 : batchInterval * i
@@ -37,11 +41,14 @@ router.get('/', async function (req, res, next) {
 				return op
 			})
 			batches = batches.concat(_batch)
+
+			
+			// batches.forEach((el) => )
+
 			let batchOldestItem = new Date(batch[batch.length - 1][1].timestamp)
-			console.log(batchOldestItem, from)
-			if (from > batchOldestItem) {
-				console.log('BINGO!, fromDate ' + from + ' has been reached: item at ' + batchOldestItem)
-				return
+			reachedInterval = from > batchOldestItem
+			if (reachedInterval) {
+				console.log(' ** Reached time interval ** ')
 			}
 		})
 		.catch((e) => {
@@ -49,8 +56,34 @@ router.get('/', async function (req, res, next) {
 			next(e)
 		})
 		await wait()
+		if (reachedInterval) break
 	}
-	res.status(200).send()
+}
+// Why did you mark those functions with async? This makes a function to always return a Promise which has no pipe method.
+router.get('/', function (req, res, next) {
+	res.attachment('dump.csv')
+	console.log('Incoming new GET request')
+	var { operation, from, until, account } = req.query
+	from = new Date(from)
+	until = new Date(until)
+	const data = {"jsonrpc":"2.0", "method":"condenser_api.get_account_history", "params":[account, -1, 100], "id":1}
+	request.post("https://api.steemit.com", {form: JSON.stringify(data)}) // .pipe(process.stdout)
+	.pipe(JSONStream.parse('result.*', function (item) {
+		item[1].op[1].timestamp = item[1].timestamp
+		return item[1].op[0] == 'transfer' ? item[1].op[1] : null 
+	}))
+	.pipe(stringify(
+		{
+		  header: true,
+		  columns: {
+		   amount: 'Amount',
+		   to: 'To',
+		   from: 'From',
+		   timestamp: 'ts',
+		   memo: 'Memo',
+		  }
+		}
+	)).pipe(res)
 })
 
 module.exports = router

@@ -18,6 +18,7 @@ const columns = {
 		from: 'From',
 		timestamp: 'ts',
 		memo: 'Memo',
+		trx_id: 'trxid',
   },
   "curation_reward": {
 		curator: 'Curator',
@@ -88,6 +89,7 @@ async function downloadCsv (req, res, next) {
 			let op = item[1].op[1]
 			let timestamp = item[1].timestamp
 			let opNum = item[0]
+			let trx_id = item[1].trx_id
 			if (item[1].op[0] == operation && new Date(timestamp) < from) {
 				// console.log(op)
 				// if (!dateReached) console.log(new Date(timestamp), from)
@@ -96,6 +98,7 @@ async function downloadCsv (req, res, next) {
 			}
 			op.timestamp = timestamp
 			op.count = opNum
+			op.trx_id = trx_id
 			// return op
 			return item[1].op[0] == operation ? op : null 
 		}))
@@ -117,6 +120,7 @@ async function downloadCsv (req, res, next) {
 	for (let j = 0; j < fileCount; j++) {
 		let path = `output_${j}.csv`
 		combinedStream.append(fs.createReadStream(path))
+		await wait(500)
 		try {
 		  fs.unlinkSync(path)
 		  //file removed

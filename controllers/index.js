@@ -1,35 +1,132 @@
 const request = require('request')
 const JSONStream = require('JSONStream')
 const stringify = require('csv-stringify')
+var CombinedStream = require('combined-stream')
+const fs = require('fs')
+const utils = require('../utils.js')
+const rpcnodes = ['https://anyx.io', 'https://api.hivekings.com', 'https://hived.privex.io']
+// The readable.pipe() method attaches a Writable stream to the readable, 
+// causing it to switch automatically into flowing mode and push all of its data to the attached Writable. 
+// The flow of data will be automatically managed so that the destination Writable stream is not 
+// overwhelmed by a faster Readable stream.
 
-function downloadDumps (req, res, next) {
+const columns = {
+	"transfer": {
+		count: 'count',
+		amount: 'Amount',
+		to: 'To',
+		from: 'From',
+		timestamp: 'ts',
+		memo: 'Memo',
+  },
+  "curation_reward": {
+		curator: 'Curator',
+		reward: 'Reward',
+		comment_author: 'Author',
+		comment_permlink: 'Permlink',
+		timestamp: 'ts',
+  }
+}
+
+const getOptions = function (op, i) {
+	return {
+		header: i == 0 ? true : false,
+		columns: columns[op]
+	}
+}
+
+function wait (ms) {
+	return new Promise((resolve, reject) => {
+		setTimeout(() => { resolve() }, ms)
+	})
+}
+
+async function downloadCsv (req, res, next) {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename=\"' + 'download-' + Date.now() + '.csv\"');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Pragma', 'no-cache');
 	var { operation, from, until, account } = req.query
+	console.log(operation, from, until, account)
 	from = new Date(from)
 	until = new Date(until)
-	const data = {"jsonrpc":"2.0", "method":"condenser_api.get_account_history", "params":[account, -1, 100], "id":1}
-	request.post("https://api.steemit.com", {form: JSON.stringify(data)}) // .pipe(process.stdout)
-	.pipe(JSONStream.parse('result.*', function (item) {
-		item[1].op[1].timestamp = item[1].timestamp
-		return item[1].op[0] == 'transfer' ? item[1].op[1] : null 
-	}))
-	.pipe(stringify(
-		{
-		  header: true,
-		  columns: {
-		   amount: 'Amount',
-		   to: 'To',
-		   from: 'From',
-		   timestamp: 'ts',
-		   memo: 'Memo',
-		  }
+	const depth = 2000
+
+	var OpCount = await utils.getOpCount(account)
+	console.log('OpCount: ' + OpCount)
+	// var writeStream = fs.createWriteStream("./output.csv", { autoClose: false })
+	// writeStream
+	// .on('error', function (err) {
+	// 	console.log(err)
+	// })
+
+	// writeStream
+	// .on('end', function () {
+	// 	console.log('writeStream ENDED!')
+	// 	fs.createReadStream("./output.csv")
+	// 	.pipe(res)
+	// })
+	var dateReached = false
+	var i = 0
+
+	while (dateReached == false) {
+		let rpcnode = rpcnodes[i % rpcnodes.length]
+		let writeStream = fs.createWriteStream(`./output_${i}.csv`)
+
+		writeStream
+		.on('error', function (err) {
+			console.log(err)
+			throw new Error(err)
+		})
+
+		let start = OpCount - i * depth
+		console.log(i + ' - '  + start)
+		const data = { "jsonrpc":"2.0", "method":"condenser_api.get_account_history", "params":[account, start, depth], "id":1 }
+		// request response is always a readable type of stream on a client
+		request.post(rpcnode, { form: JSON.stringify(data) }) // .pipe(process.stdout)
+		.pipe(JSONStream.parse('result.*', function (item) {
+			let op = item[1].op[1]
+			let timestamp = item[1].timestamp
+			let opNum = item[0]
+			if (item[1].op[0] == operation && new Date(timestamp) < from) {
+				// console.log(op)
+				// if (!dateReached) console.log(new Date(timestamp), from)
+				dateReached = true
+				return null
+			}
+			op.timestamp = timestamp
+			op.count = opNum
+			// return op
+			return item[1].op[0] == operation ? op : null 
+		}))
+		.pipe(stringify(getOptions(operation, i)))
+		.pipe(writeStream)
+
+		// .on('end', function () {
+		// 	// check last file and stop loop if dates ranges are achieved
+		// })
+		await wait(500)
+		i++
+	}
+	console.log('BINGO ' + i)
+
+	const dir = './'
+	var fileCount = fs.readdirSync(dir).filter((file) => file.indexOf('csv') > -1).length
+
+	var combinedStream = CombinedStream.create()
+	for (let j = 0; j < fileCount; j++) {
+		let path = `output_${j}.csv`
+		combinedStream.append(fs.createReadStream(path))
+		try {
+		  fs.unlinkSync(path)
+		  //file removed
+		} catch(err) {
+		  console.error(err)
 		}
-	)).pipe(res)
+	}
+	combinedStream.pipe(res)
 }
 
 module.exports = {
-	downloadDumps: downloadDumps
+	downloadCsv: downloadCsv
 }

@@ -1,4 +1,4 @@
-var port         = (process.env.NODE_ENV !== 'production') ? 5000 : 5000
+var port         = process.env.NODE_ENV == 'development' ? 5000 : process.env.PORT
 const express    = require('express')
 const helmet     = require('helmet')
 const cors = require('cors')

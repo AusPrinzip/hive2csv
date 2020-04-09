@@ -4,7 +4,7 @@ const stringify = require('csv-stringify')
 var CombinedStream = require('combined-stream')
 const fs = require('fs')
 const utils = require('../utils.js')
-const rpcnodes = ['https://anyx.io', 'https://api.hivekings.com', 'https://hived.privex.io']
+const rpcnodes = ['https://anyx.io', 'https://api.hivekings.com', 'https://hived.privex.io', 'https://api.pharesim.me']
 // The readable.pipe() method attaches a Writable stream to the readable, 
 // causing it to switch automatically into flowing mode and push all of its data to the attached Writable. 
 // The flow of data will be automatically managed so that the destination Writable stream is not 
@@ -54,23 +54,12 @@ async function downloadCsv (req, res, next) {
 	const depth = 2000
 
 	var OpCount = await utils.getOpCount(account)
-	console.log('OpCount: ' + OpCount)
-	// var writeStream = fs.createWriteStream("./output.csv", { autoClose: false })
-	// writeStream
-	// .on('error', function (err) {
-	// 	console.log(err)
-	// })
 
-	// writeStream
-	// .on('end', function () {
-	// 	console.log('writeStream ENDED!')
-	// 	fs.createReadStream("./output.csv")
-	// 	.pipe(res)
-	// })
-	var dateReached = false
+	var fromLimit = false
+	var untilLimit = false
 	var i = 0
 
-	while (dateReached == false) {
+	while (fromLimit == false) {
 		let rpcnode = rpcnodes[i % rpcnodes.length]
 		let writeStream = fs.createWriteStream(`./output_${i}.csv`)
 
@@ -90,10 +79,10 @@ async function downloadCsv (req, res, next) {
 			let timestamp = item[1].timestamp
 			let opNum = item[0]
 			let trx_id = item[1].trx_id
-			if (item[1].op[0] == operation && new Date(timestamp) < from) {
-				// console.log(op)
-				// if (!dateReached) console.log(new Date(timestamp), from)
-				dateReached = true
+			if (new Date(timestamp) < from) {
+				fromLimit = true
+				return null
+			} else if (new Date(timestamp) > until) {
 				return null
 			}
 			op.timestamp = timestamp
@@ -105,9 +94,6 @@ async function downloadCsv (req, res, next) {
 		.pipe(stringify(getOptions(operation, i)))
 		.pipe(writeStream)
 
-		// .on('end', function () {
-		// 	// check last file and stop loop if dates ranges are achieved
-		// })
 		await wait(500)
 		i++
 	}

@@ -118,7 +118,7 @@ async function downloadCsv (req, res, next) {
 		.pipe(stringify(getOptions(operation, i)))
 		.pipe(writeStream)
 
-		await wait(1000)
+		await wait(1200)
 		i++
 	}
 	console.log('BINGO ' + i)

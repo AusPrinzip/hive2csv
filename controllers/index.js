@@ -36,6 +36,22 @@ const columns = {
   	memo_key: 'memo_key',
   	json_metadata: 'json_metadata',
   	extensions: 'extensions',
+  },
+  "comment_benefactor_reward": {
+  	benefactor: 'benefactor',
+  	author: 'Author',
+  	permlink: 'Permlink',
+  	sbd_payout: 'SBD Payout',
+  	steem_payout: 'STEEM Payout',
+  	vesting_payout: 'Vest Payout',
+  },
+  "comment": {
+  	parent_author: 'Parent Author',
+  	parent_permlink: 'Parent Permlink',
+  	author: 'Author',
+  	permlink: 'Permlink',
+  	title: 'title',
+  	json_metadata: 'json_metadata',
   }
 }
 

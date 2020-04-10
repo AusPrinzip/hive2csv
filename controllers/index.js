@@ -26,6 +26,16 @@ const columns = {
 		comment_author: 'Author',
 		comment_permlink: 'Permlink',
 		timestamp: 'ts',
+  },
+  "create_claimed_account": {
+  	creator: 'Creator',
+  	new_account_name: 'New account name',
+  	owner: 'owner',
+  	active: 'active',
+  	posting: 'posting',
+  	memo_key: 'memo_key',
+  	json_metadata: 'json_metadata',
+  	extensions: 'extensions',
   }
 }
 

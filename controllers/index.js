@@ -58,10 +58,11 @@ async function downloadCsv (req, res, next) {
 	var fromLimit = false
 	var untilLimit = false
 	var i = 0
+	var identifier = account + from.getTime().toString() + until.getTime().toString() + operation
 
 	while (fromLimit == false) {
 		let rpcnode = rpcnodes[i % rpcnodes.length]
-		let writeStream = fs.createWriteStream(`./output_${i}.csv`)
+		let writeStream = fs.createWriteStream(`./${identifier}${i}.csv`)
 
 		writeStream
 		.on('error', function (err) {
@@ -104,7 +105,7 @@ async function downloadCsv (req, res, next) {
 
 	var combinedStream = CombinedStream.create()
 	for (let j = 0; j < fileCount; j++) {
-		let path = `output_${j}.csv`
+		let path = `${identifier}${j}.csv`
 		combinedStream.append(fs.createReadStream(path))
 		await wait(500)
 		try {

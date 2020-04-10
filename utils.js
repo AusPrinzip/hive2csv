@@ -1,5 +1,5 @@
 const dsteem = require('@hivechain/dhive')
-const client = new dsteem.Client('https://anyx.io')
+const client = new dsteem.Client('https://hived.privex.io')
 // https://api.hivekings.com
 // https://anyx.io
 function getClient () {

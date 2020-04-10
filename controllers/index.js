@@ -79,14 +79,23 @@ async function downloadCsv (req, res, next) {
 	until = new Date(until)
 	const depth = 10000
 
+	// should prob call this asychronously
 	var OpCount = await utils.getOpCount(account)
 
-	var fromLimit = false
-	var untilLimit = false
+	var fromDateReached = false
+	var untilDateReached = false
 	var i = 0
 	var identifier = account + from.getTime().toString() + until.getTime().toString() + operation
+	// In case of rpcnode timeouts, we will push the failed request to "failed" arr and try to recover it with a diff rpcnode
+	var failed = []
 	const date1 = new Date()
-	while (fromLimit == false) {
+
+	// date error handling
+	// TODO no date prior to 2016 - creation of steem
+
+	if (from > until) throw new Error('from > until')
+
+	while (fromDateReached == false) {
 		let rpcnode = rpcnodes[i % rpcnodes.length]
 		let writeStream = fs.createWriteStream(`./${identifier}${i}.csv`)
 
@@ -110,8 +119,13 @@ async function downloadCsv (req, res, next) {
 				// not an error msg
 			}
 			if (json.hasOwnProperty('error')) {
-				console.log(rpcnode)
-				throw new Error(json.error.message)
+				console.log('Request failed at start: ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
+				let timeoutError = json.error.message.indexOf('Timeout') > -1
+				if (timeoutError) {
+					failed.push({ rpcnode: rpcnode, start: start })
+				} else {
+					throw new Error(json.error.message)
+				}
 			}
 		})
 		.pipe(JSONStream.parse('result.*', function (item) {
@@ -120,7 +134,7 @@ async function downloadCsv (req, res, next) {
 			let opNum = item[0]
 			let trx_id = item[1].trx_id
 			if (new Date(timestamp) < from) {
-				fromLimit = true
+				fromDateReached = true
 				return null
 			} else if (new Date(timestamp) > until) {
 				return null
@@ -143,18 +157,22 @@ async function downloadCsv (req, res, next) {
 		i++
 	}
 	console.log('BINGO ' + i)
+
+	// Timer for performance tests
 	const date2 = new Date()
 	const milisec = 1000
 	const timediff = (date2 - date1) / milisec
 	console.log(timediff)
+
+	// Check disk for files before streaming out
 	const dir = './'
 	var fileCount = fs.readdirSync(dir).filter((file) => file.indexOf(identifier) > -1).length
 
+	// Read stream combination
 	var combinedStream = CombinedStream.create()
 	for (let j = 0; j < fileCount; j++) {
 		let path = `${identifier}${j}.csv`
 		combinedStream.append(fs.createReadStream(path))
-		// await wait(500)
 		fs.unlink(path, (err) => {
 		  if (err) throw err;
 		  console.log(path + ' was deleted')

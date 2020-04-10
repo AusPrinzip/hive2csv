@@ -112,6 +112,11 @@ async function downloadCsv (req, res, next) {
 			op.timestamp = timestamp
 			op.count = opNum
 			op.trx_id = trx_id
+			if (item[1].op[0] == 'transfer') {
+				let currency = op.amount.indexOf('HIVE') > -1 ? 'HIVE' : 'HBD'
+				op.amount = parseFloat(op.amount).toString(3)
+				op.currency = currency
+			}
 			// return op
 			return item[1].op[0] == operation ? op : null 
 		}))

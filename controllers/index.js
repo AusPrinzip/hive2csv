@@ -73,6 +73,8 @@ function wait (ms) {
 async function downloadCsv (req, res, next) {
   var { operation, from, until, account } = req.query
   console.log(operation, from, until, account)
+  // make sure its lowercase
+  account = account.toLowerCase()
   from = new Date(from)
   until = new Date(until)
   const depth = 10000

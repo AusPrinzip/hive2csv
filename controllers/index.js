@@ -189,7 +189,7 @@ async function downloadCsv (req, res, next) {
           // WHY NOT RETURN HERE ANOTHER REQUEST (AKA READSTREAM) WITH A DIFF RPC NODE ?!
           timeoutRequests.push({ rpcnode: rpcnode, data: data, batch: i })
         } else {
-          return res.send(JSON.stringify({ error: err }))
+          return res.send(JSON.stringify({ error: json.error.message }))
         }
       }
     })

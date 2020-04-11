@@ -4,7 +4,7 @@ const stringify = require('csv-stringify')
 var CombinedStream = require('combined-stream')
 const fs = require('fs')
 const utils = require('../utils.js')
-const rpcnodes = ['https://anyx.io', 'https://hived.privex.io', 'https://api.pharesim.me']
+const rpcnodes = ['https://anyx.io', 'https://hived.privex.io', 'https://api.pharesim.me', 'https://api.hivekings.com', 'https://api.hive.blog']
 // The readable.pipe() method attaches a Writable stream to the readable, 
 // causing it to switch automatically into flowing mode and push all of its data to the attached Writable. 
 // The flow of data will be automatically managed so that the destination Writable stream is not 
@@ -14,6 +14,7 @@ const columns = {
 	"transfer": {
 		count: 'count',
 		amount: 'Amount',
+		currency: 'Currency',
 		to: 'To',
 		from: 'From',
 		timestamp: 'ts',
@@ -68,11 +69,8 @@ function wait (ms) {
 	})
 }
 
+
 async function downloadCsv (req, res, next) {
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=\"' + 'download-' + Date.now() + '.csv\"');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Pragma', 'no-cache');
 	var { operation, from, until, account } = req.query
 	console.log(operation, from, until, account)
 	from = new Date(from)
@@ -87,7 +85,7 @@ async function downloadCsv (req, res, next) {
 	var i = 0
 	var identifier = account + from.getTime().toString() + until.getTime().toString() + operation
 	// In case of rpcnode timeouts, we will push the failed request to "failed" arr and try to recover it with a diff rpcnode
-	var failed = []
+	var timeoutRequests = []
 	const date1 = new Date()
 
 	// date error handling
@@ -102,29 +100,94 @@ async function downloadCsv (req, res, next) {
 		writeStream
 		.on('error', function (err) {
 			console.log(err)
-			throw new Error(err)
+			return res.send(JSON.stringify({ error: err }))
 		})
 
 		let start = OpCount - i * depth
 		console.log(i + ' - '  + start)
 		const data = { "jsonrpc":"2.0", "method":"condenser_api.get_account_history", "params":[account, start, depth], "id":1 }
 		// request response is always a readable type of stream on a client
+
+		requestBatch(rpcnode, data, i)
+		.pipe(writeStream)
+
+		await wait(1200)
+		i++
+	}
+	console.log('BINGO ' + i)
+
+	// Retry for timedout requests
+	// Another strategy for recovering data after a rpc times out, is having a default 5000-items depth and have next 
+	// rpc node deal with x2 (10k items)
+	for (let k = i; k < i + timeoutRequests.length; k++) {
+		let writeStream = fs.createWriteStream(`./${identifier}${k}.csv`)
+		let timeoutRequest = timeoutRequests[k - i]
+		let failed_rpcnode = timeoutRequest.rpcnode
+		let _rpcnodes = rpcnodes.filter((rpcnode) => rpcnode !== failed_rpcnode)
+		let rpcnode = _rpcnodes[0]
+
+		console.log('Trying to recover batch#' + timeoutRequest.batch)
+		requestBatch(rpcnode, timeoutRequest.data, k)
+		.pipe(writeStream)
+
+		await wait(1800)
+		if (k >= i + timeoutRequests.lengh) console.log('Recovery loop ended')
+	}
+
+	// Timer for performance tests
+	const date2 = new Date()
+	const milisec = 1000
+	const timediff = (date2 - date1) / milisec
+	console.log(timediff)
+
+	// Check disk for files before streaming out
+	const dir = './'
+	var fileCount = fs.readdirSync(dir).filter((file) => file.indexOf(identifier) > -1).length
+
+	// Read stream combination
+	var combinedStream = CombinedStream.create()
+	for (let j = 0; j < fileCount; j++) {
+		let path = `${identifier}${j}.csv`
+		combinedStream.append(fs.createReadStream(path))
+		fs.unlink(path, (err) => {
+		  if (err) return res.send(JSON.stringify({ error: err }))
+		  console.log(path + ' was deleted')
+		})
+	}
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=\"' + 'download-' + Date.now() + '.csv\"');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Pragma', 'no-cache');
+	combinedStream.pipe(res)
+
+	function requestBatch (rpcnode, data, i) {
+
+		let start = 0
+		try {
+			start = data.params[1]
+		} catch(err) {
+			console.log(rpcnode, data, i)
+			return res.send(JSON.stringify({ error: err }))
+		}
+		let depth = data.params[2]
+		let stringifyWriteStream = stringify(getOptions(operation, i))
 		request.post(rpcnode, { form: JSON.stringify(data) }) // .pipe(process.stdout)
 		.on('data', (chunk) => {
-			let data = chunk.toString()
+			let textdata = chunk.toString()
 			let json = {}
 			try {
-				json = JSON.parse(data)
+				json = JSON.parse(textdata)
 			} catch(e) {
 				// not an error msg
 			}
 			if (json.hasOwnProperty('error')) {
-				console.log('Request failed at start: ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
+				console.log('Request failed at Batch #:' + i + ', OP#(start): ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
 				let timeoutError = json.error.message.indexOf('Timeout') > -1
 				if (timeoutError) {
-					failed.push({ rpcnode: rpcnode, start: start })
+					// WHY NOT RETURN HERE ANOTHER REQUEST (AKA READSTREAM) WITH A DIFF RPC NODE ?!
+					timeoutRequests.push({ rpcnode: rpcnode, data: data, batch: i })
 				} else {
-					throw new Error(json.error.message)
+					return res.send(JSON.stringify({ error: err }))
 				}
 			}
 		})
@@ -144,41 +207,15 @@ async function downloadCsv (req, res, next) {
 			op.trx_id = trx_id
 			if (item[1].op[0] == 'transfer') {
 				let currency = op.amount.indexOf('HIVE') > -1 ? 'HIVE' : 'HBD'
-				op.amount = parseFloat(op.amount).toString(3)
+				op.amount = parseFloat(op.amount).toFixed(3)
 				op.currency = currency
 			}
 			// return op
 			return item[1].op[0] == operation ? op : null 
 		}))
-		.pipe(stringify(getOptions(operation, i)))
-		.pipe(writeStream)
-
-		await wait(1200)
-		i++
+		.pipe(stringifyWriteStream)
+		return stringifyWriteStream
 	}
-	console.log('BINGO ' + i)
-
-	// Timer for performance tests
-	const date2 = new Date()
-	const milisec = 1000
-	const timediff = (date2 - date1) / milisec
-	console.log(timediff)
-
-	// Check disk for files before streaming out
-	const dir = './'
-	var fileCount = fs.readdirSync(dir).filter((file) => file.indexOf(identifier) > -1).length
-
-	// Read stream combination
-	var combinedStream = CombinedStream.create()
-	for (let j = 0; j < fileCount; j++) {
-		let path = `${identifier}${j}.csv`
-		combinedStream.append(fs.createReadStream(path))
-		fs.unlink(path, (err) => {
-		  if (err) throw err;
-		  console.log(path + ' was deleted')
-		})
-	}
-	combinedStream.pipe(res)
 }
 
 module.exports = {

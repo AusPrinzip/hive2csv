@@ -4,7 +4,7 @@ const stringify = require('csv-stringify')
 var CombinedStream = require('combined-stream')
 const fs = require('fs')
 const utils = require('../utils.js')
-const rpcnodes = ['https://anyx.io', 'https://hived.privex.io', 'https://api.pharesim.me', 'https://api.hivekings.com', 'https://api.hive.blog']
+const rpcnodes = ['https://anyx.io', 'https://api.hivekings.com']
 // The readable.pipe() method attaches a Writable stream to the readable, 
 // causing it to switch automatically into flowing mode and push all of its data to the attached Writable. 
 // The flow of data will be automatically managed so that the destination Writable stream is not 
@@ -111,7 +111,7 @@ async function downloadCsv (req, res, next) {
     requestBatch(rpcnode, data, i)
     .pipe(writeStream)
 
-    await wait(1200)
+    await wait(2000)
     i++
   }
   console.log('BINGO ' + i)

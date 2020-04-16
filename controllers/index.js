@@ -4,7 +4,7 @@ const stringify = require('csv-stringify')
 var CombinedStream = require('combined-stream')
 const fs = require('fs')
 const utils = require('../utils.js')
-const rpcnodes = ['https://anyx.io', 'https://api.hivekings.com']
+const rpcnodes = ['https://anyx.io']
 // The readable.pipe() method attaches a Writable stream to the readable, 
 // causing it to switch automatically into flowing mode and push all of its data to the attached Writable. 
 // The flow of data will be automatically managed so that the destination Writable stream is not 
@@ -77,7 +77,7 @@ async function downloadCsv (req, res, next) {
   account = account.toLowerCase()
   from = new Date(from)
   until = new Date(until)
-  const depth = 10000
+  const depth = 1000
 
   // should prob call this asychronously
   var OpCount = await utils.getOpCount(account)
@@ -113,7 +113,7 @@ async function downloadCsv (req, res, next) {
     requestBatch(rpcnode, data, i)
     .pipe(writeStream)
 
-    await wait(2000)
+    await wait(300)
     i++
   }
   console.log('BINGO ' + i)
@@ -132,7 +132,7 @@ async function downloadCsv (req, res, next) {
     requestBatch(rpcnode, timeoutRequest.data, k)
     .pipe(writeStream)
 
-    await wait(1800)
+    await wait(300)
     if (k >= i + timeoutRequests.lengh) console.log('Recovery loop ended')
   }
 

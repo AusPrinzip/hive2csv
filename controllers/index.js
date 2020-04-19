@@ -37,6 +37,7 @@ const columns = {
     memo_key: 'memo_key',
     json_metadata: 'json_metadata',
     extensions: 'extensions',
+    timestamp: 'ts',
   },
   "comment_benefactor_reward": {
     benefactor: 'benefactor',
@@ -45,6 +46,7 @@ const columns = {
     sbd_payout: 'SBD Payout',
     steem_payout: 'STEEM Payout',
     vesting_payout: 'Vest Payout',
+    timestamp: 'ts',
   },
   "comment": {
     parent_author: 'Parent Author',
@@ -53,6 +55,7 @@ const columns = {
     permlink: 'Permlink',
     title: 'title',
     json_metadata: 'json_metadata',
+    timestamp: 'ts',
   }
 }
 

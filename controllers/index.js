@@ -80,7 +80,7 @@ async function downloadCsv (req, res, next) {
   account = account.toLowerCase()
   from = new Date(from)
   until = new Date(until)
-  const depth = 1000
+  var depth = 1000
 
   // should prob call this asychronously
   var OpCount = await utils.getOpCount(account)
@@ -109,6 +109,10 @@ async function downloadCsv (req, res, next) {
     })
 
     let start = OpCount - i * depth
+
+    if (start < depth) {
+      depth = start - 1
+    }
     console.log(i + ' - '  + start)
     const data = { "jsonrpc":"2.0", "method":"condenser_api.get_account_history", "params":[account, start, depth], "id":1 }
     // request response is always a readable type of stream on a client
@@ -186,6 +190,7 @@ async function downloadCsv (req, res, next) {
         // not an error msg
       }
       if (json.hasOwnProperty('error')) {
+        console.log(data)
         console.log('Request failed at Batch #:' + i + ', OP#(start): ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
         let timeoutError = json.error.message.indexOf('Timeout') > -1
         if (timeoutError) {

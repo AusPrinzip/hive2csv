@@ -35,4 +35,5 @@ app.use((err, req, res, next) => {
   res.json({ error: err.message })
 });
 
-app.listen(port, () => console.log('API running on port ' + port))
+app.listen(port, () => console.log('API running on port ' + port));
+server.setTimeout(500000);

@@ -74,6 +74,7 @@ function wait (ms) {
 
 
 async function downloadCsv (req, res, next) {
+  req.setTimeout(500000);
   var { operation, from, until, account } = req.query
   console.log(operation, from, until, account)
   // make sure its lowercase

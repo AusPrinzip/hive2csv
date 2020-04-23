@@ -36,4 +36,4 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, () => console.log('API running on port ' + port));
-server.setTimeout(500000);
+app.setTimeout(500000);

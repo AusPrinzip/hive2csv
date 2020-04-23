@@ -81,7 +81,7 @@ async function downloadCsv (req, res, next) {
   account = account.toLowerCase()
   from = new Date(from)
   until = new Date(until)
-  var depth = 1000
+  var depth = 2000
 
   // should prob call this asychronously
   var OpCount = await utils.getOpCount(account)
@@ -121,7 +121,7 @@ async function downloadCsv (req, res, next) {
     requestBatch(rpcnode, data, i)
     .pipe(writeStream)
 
-    await wait(300)
+    await wait(500)
     i++
   }
   console.log('BINGO ' + i)

@@ -59,7 +59,7 @@ async function downloadCsv (req, res, next) {
 
   if (from > until) throw new Error('from > until')
 
-  var combinedStream = CombinedStream.create({ pauseStreams: false })
+  var combinedStream = CombinedStream.create({ pauseStreams: true })
   
   combinedStream
   .on('error', function (err) {

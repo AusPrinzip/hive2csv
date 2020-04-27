@@ -128,9 +128,11 @@ async function downloadCsv (req, res, next) {
       } catch(e) {
         // not an error msg
       }
-      if (json.hasOwnProperty('error')) {
+      if (json && json.hasOwnProperty('error')) {
         console.log(data)
-        let error = new Error('Request failed at Batch #:' + i + ', OP#(start): ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
+        let errorMsg = 'Request failed at Batch #:' + i + ', OP#(start): ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message
+        console.log(errorMsg)
+        let error = new Error(errorMsg)
         let timeoutError = json.error.message.indexOf('Timeout') > -1
         if (timeoutError) {
           // WHY NOT RETURN HERE ANOTHER REQUEST (AKA READSTREAM) WITH A DIFF RPC NODE ?!

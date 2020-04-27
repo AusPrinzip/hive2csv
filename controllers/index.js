@@ -53,9 +53,6 @@ async function downloadCsv (req, res, next) {
   var untilDateReached = false
   var i = 0
   var identifier = account + from.getTime().toString() + until.getTime().toString() + operation
-  // In case of rpcnode timeouts, we will push the failed request to "failed" arr and try to recover it with a diff rpcnode
-  var timeoutRequests = []
-  const date1 = new Date()
 
   // date error handling
   // TODO no date prior to 2016 - creation of steem

@@ -45,7 +45,7 @@ async function downloadCsv (req, res, next) {
   from = new Date(from)
   until = new Date(until)
   const depth = 1000
-  const delay = 300
+  const delay = 100
   // should prob call this asychronously
   var OpCount = await utils.getOpCount(account)
 
@@ -59,7 +59,7 @@ async function downloadCsv (req, res, next) {
 
   if (from > until) throw new Error('from > until')
 
-  var combinedStream = CombinedStream.create({ pauseStreams: true })
+  var combinedStream = CombinedStream.create({ pauseStreams: false })
   
   combinedStream
   .on('error', function (err) {

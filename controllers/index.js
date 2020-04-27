@@ -74,7 +74,14 @@ function wait (ms) {
 
 
 async function downloadCsv (req, res, next) {
+  // header config
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=\"' + 'download-' + Date.now() + '.csv\"');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Pragma', 'no-cache');
+  // req config
   req.setTimeout(500000);
+
   var { operation, from, until, account } = req.query
   if (!operation || ! from || !until || !account) {
     return res.send(JSON.stringify({ error: 'missing argument/s' }))
@@ -84,8 +91,8 @@ async function downloadCsv (req, res, next) {
   account = account.toLowerCase()
   from = new Date(from)
   until = new Date(until)
-  var depth = 2000
-
+  const depth = 1000
+  const delay = 300
   // should prob call this asychronously
   var OpCount = await utils.getOpCount(account)
 
@@ -102,16 +109,15 @@ async function downloadCsv (req, res, next) {
 
   if (from > until) throw new Error('from > until')
 
+  var combinedStream = CombinedStream.create({ pauseStreams: false })
+  
+  combinedStream
+  .on('error', function (err) {
+    return res.send(JSON.stringify({ error: err }))
+  })
+
   while (fromDateReached == false) {
     let rpcnode = rpcnodes[i % rpcnodes.length]
-    let writeStream = fs.createWriteStream(`./${identifier}${i}.csv`)
-
-    writeStream
-    .on('error', function (err) {
-      console.log(err)
-      return res.send(JSON.stringify({ error: err }))
-    })
-
     let start = OpCount - i * depth
 
     if (start < depth) {
@@ -119,62 +125,41 @@ async function downloadCsv (req, res, next) {
     }
     console.log(i + ' - '  + start)
     const data = { "jsonrpc":"2.0", "method":"condenser_api.get_account_history", "params":[account, start, depth], "id":1 }
-    // request response is always a readable type of stream on a client
 
-    requestBatch(rpcnode, data, i)
-    .pipe(writeStream)
+    combinedStream.append(requestBatch(rpcnode, data, i))
 
-    await wait(500)
+    await wait(delay)
+    if (i == 0) {
+      combinedStream.pipe(res)
+    }
     i++
   }
-  console.log('BINGO ' + i)
-
-  // Retry for timedout requests
-  // Another strategy for recovering data after a rpc times out, is having a default 5000-items depth and have next 
-  // rpc node deal with x2 (10k items)
-  for (let k = i; k < i + timeoutRequests.length; k++) {
-    let writeStream = fs.createWriteStream(`./${identifier}${k}.csv`)
-    let timeoutRequest = timeoutRequests[k - i]
-    let failed_rpcnode = timeoutRequest.rpcnode
-    let _rpcnodes = rpcnodes.filter((rpcnode) => rpcnode !== failed_rpcnode)
-    let rpcnode = _rpcnodes[0]
-
-    console.log('Trying to recover batch#' + timeoutRequest.batch)
-    requestBatch(rpcnode, timeoutRequest.data, k)
-    .pipe(writeStream)
-
-    await wait(300)
-    if (k >= i + timeoutRequests.lengh) console.log('Recovery loop ended')
+  console.log(`Date scope reached at batch#: ${i} (at ${depth} items per batch)`)
+  
+  function transform (item) {
+    let op = item[1].op[1]
+    let timestamp = item[1].timestamp
+    let opNum = item[0]
+    let trx_id = item[1].trx_id
+    if (new Date(timestamp) < from) {
+      fromDateReached = true
+      return null
+    } else if (new Date(timestamp) > until) {
+      return null
+    }
+    op.timestamp = timestamp
+    op.count = opNum
+    op.trx_id = trx_id
+    if (item[1].op[0] == 'transfer') {
+      let currency = op.amount.indexOf('HIVE') > -1 ? 'HIVE' : 'HBD'
+      op.amount = parseFloat(op.amount).toFixed(3)
+      op.currency = currency
+    }
+    // return op
+    return item[1].op[0] == operation ? op : null 
   }
-
-  // Timer for performance tests
-  const date2 = new Date()
-  const milisec = 1000
-  const timediff = (date2 - date1) / milisec
-  console.log(timediff)
-
-  // Check disk for files before streaming out
-  const dir = './'
-  var fileCount = fs.readdirSync(dir).filter((file) => file.indexOf(identifier) > -1).length
-
-  // Read stream combination
-  var combinedStream = CombinedStream.create()
-  for (let j = 0; j < fileCount; j++) {
-    let path = `${identifier}${j}.csv`
-    combinedStream.append(fs.createReadStream(path))
-    fs.unlink(path, (err) => {
-      if (err) return res.send(JSON.stringify({ error: err }))
-      console.log(path + ' was deleted')
-    })
-  }
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=\"' + 'download-' + Date.now() + '.csv\"');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Pragma', 'no-cache');
-  combinedStream.pipe(res)
 
   function requestBatch (rpcnode, data, i) {
-
     let start = 0
     try {
       start = data.params[1]
@@ -195,7 +180,7 @@ async function downloadCsv (req, res, next) {
       }
       if (json.hasOwnProperty('error')) {
         console.log(data)
-        console.log('Request failed at Batch #:' + i + ', OP#(start): ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
+        let error = new Error('Request failed at Batch #:' + i + ', OP#(start): ' + start + ' with rpcnode: ' + rpcnode + ' and with error: ' + json.error.message)
         let timeoutError = json.error.message.indexOf('Timeout') > -1
         if (timeoutError) {
           // WHY NOT RETURN HERE ANOTHER REQUEST (AKA READSTREAM) WITH A DIFF RPC NODE ?!
@@ -204,29 +189,8 @@ async function downloadCsv (req, res, next) {
           return res.send(JSON.stringify({ error: json.error.message }))
         }
       }
-    })
-    .pipe(JSONStream.parse('result.*', function (item) {
-      let op = item[1].op[1]
-      let timestamp = item[1].timestamp
-      let opNum = item[0]
-      let trx_id = item[1].trx_id
-      if (new Date(timestamp) < from) {
-        fromDateReached = true
-        return null
-      } else if (new Date(timestamp) > until) {
-        return null
-      }
-      op.timestamp = timestamp
-      op.count = opNum
-      op.trx_id = trx_id
-      if (item[1].op[0] == 'transfer') {
-        let currency = op.amount.indexOf('HIVE') > -1 ? 'HIVE' : 'HBD'
-        op.amount = parseFloat(op.amount).toFixed(3)
-        op.currency = currency
-      }
-      // return op
-      return item[1].op[0] == operation ? op : null 
-    }))
+    }) 
+    .pipe(JSONStream.parse('result.*', function (item) { return transform(item) }))
     .pipe(stringifyWriteStream)
     return stringifyWriteStream
   }
